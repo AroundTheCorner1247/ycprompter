@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YC Prompter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #000;
+            color: #fff;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            min-height: 100vh;
+            text-align: center;
+            box-sizing: border-box;
+        }
+        #container {
+            width: 100%;
+            height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+            border: 20px solid #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            transition: border-color 0.3s ease;
+        }
+        #teleprompter {
+            font-size: 2.5em;
+            max-width: 800px;
+            padding: 20px;
+        }
+        #preview {
+            font-size: 1.5em;
+            color: #aaa;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        #previewContainer {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        #nextSpeakerIndicator {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        #preview {
+            font-size: 1.5em;
+            color: #aaa;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            background-color: #333;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #555;
+        }
+        #timerContainer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            font-size: 1.5em;
+        }
+        #totalTimer {
+            text-align: left;
+        }
+        #segmentTimer {
+            text-align: right;
+        }
+        #segmentControls {
+            margin-top: 5px;
+        }
+        #segmentDuration {
+            width: 40px;
+            text-align: center;
+        }
+        .durationControl {
+            cursor: pointer;
+            user-select: none;
+            padding: 0 5px;
+        }
+        .modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #fff;
+            color: #000;
+            padding: 20px;
+            border-radius: 5px;
+            display: none;
+            max-width: 80%;
+            max-height: 80%;
+            overflow-y: auto;
+        }
+        .modal textarea {
+            width: 100%;
+            height: 200px;
+            margin-bottom: 10px;
+        }
+        #speakerList {
+            list-style-type: none;
+            padding: 0;
+        }
+        #speakerList li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        #speakerPreview {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .speaker-preview {
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="timerContainer">
+            <div id="totalTimer"></div>
+            <div id="segmentTimer">
+                <div id="segmentTime"></div>
+                <div id="segmentControls">
+                    <input type="number" id="segmentDuration" min="1" step="1">
+                    <span class="durationControl" id="decreaseDuration">-</span>
+                    <span class="durationControl" id="increaseDuration">+</span>
+                </div>
+            </div>
+        </div>
+        <div id="speakerPreview"></div>
+        <div id="teleprompter">Press Start to begin...</div>
+        <div id="previewContainer">
+            <div id="nextSpeakerIndicator"></div>
+            <div id="preview">Next text will appear here...</div>
+        </div>
+        <div id="controls">
+            <button id="toggleButton">Start</button>
+            <button id="resetButton">Reset (R)</button>
+            <button id="backButton">Back (←)</button>
+            <button id="nextButton">Next (→)</button>
+            <button id="editButton">Edit Script (E)</button>
+            <button id="manageSpeakersButton">Manage Speakers (M)</button>
+        </div>
+    </div>
+    <div id="scriptEditor" class="modal">
+        <h2>Edit Script</h2>
+        <textarea id="scriptText"></textarea>
+        <button id="saveScript">Save</button>
+        <button id="cancelEdit">Cancel</button>
+        <button id="copyToClipboard">Copy to Clipboard</button>
+        <button id="pasteFromClipboard">Paste from Clipboard</button>
+    </div>
+    <div id="speakerManager" class="modal">
+        <h2>Manage Speakers</h2>
+        <ul id="speakerList"></ul>
+        <input type="text" id="newSpeakerName" placeholder="New speaker name">
+        <input type="color" id="newSpeakerColor" value="#ffffff">
+        <button id="addSpeaker">Add Speaker</button>
+        <button id="saveSpeakers">Save</button>
+        <button id="cancelSpeakers">Cancel</button>
+    </div>
+
+    <script>
+        const defaultScript = [
+            { duration: 5, speaker: "Speaker1", text: "Welcome to this presentation." },
+            { duration: 7, speaker: "Speaker2", text: "We're going to discuss some important topics today." },
+            { duration: 6, speaker: "Speaker1", text: "Let's get started with our first point." },
+        ];
+
+        let speakerColors = JSON.parse(localStorage.getItem('speakerColors')) || {
+            Speaker1: "#FF5733",
+            Speaker2: "#33A1FF",
+        };
+
+        let script = JSON.parse(localStorage.getItem('teleprompterScript')) || defaultScript;
+
+        const teleprompter = document.getElementById('teleprompter');
+        const preview = document.getElementById('preview');
+        const nextSpeakerIndicator = document.getElementById('nextSpeakerIndicator');
+        const container = document.getElementById('container');
+        const timer = document.getElementById('timer');
+        const segmentDuration = document.getElementById('segmentDuration');
+        const decreaseDuration = document.getElementById('decreaseDuration');
+        const increaseDuration = document.getElementById('increaseDuration');
+        const toggleButton = document.getElementById('toggleButton');
+        const resetButton = document.getElementById('resetButton');
+        const backButton = document.getElementById('backButton');
+        const nextButton = document.getElementById('nextButton');
+        const editButton = document.getElementById('editButton');
+        const manageSpeakersButton = document.getElementById('manageSpeakersButton');
+        const scriptEditor = document.getElementById('scriptEditor');
+        const scriptText = document.getElementById('scriptText');
+        const saveScriptButton = document.getElementById('saveScript');
+        const cancelEditButton = document.getElementById('cancelEdit');
+        const copyToClipboardButton = document.getElementById('copyToClipboard');
+        const pasteFromClipboardButton = document.getElementById('pasteFromClipboard');
+        const speakerManager = document.getElementById('speakerManager');
+        const speakerList = document.getElementById('speakerList');
+        const newSpeakerName = document.getElementById('newSpeakerName');
+        const newSpeakerColor = document.getElementById('newSpeakerColor');
+        const addSpeakerButton = document.getElementById('addSpeaker');
+        const saveSpeakersButton = document.getElementById('saveSpeakers');
+        const cancelSpeakersButton = document.getElementById('cancelSpeakers');
+        const speakerPreview = document.getElementById('speakerPreview');
+
+        let currentIndex = -1;
+        let countdownTime = 5;
+        let timerInterval;
+        let isRunning = false;
+        let currentTime = -countdownTime;
+        let segmentStartTime = 0;
+
+        function formatTime(totalSeconds) {
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        function calculateTotalTime() {
+            return script.reduce((total, item) => total + item.duration, 0);
+        }
+
+        function updateDisplay() {
+            const totalTime = calculateTotalTime();
+            const totalTimer = document.getElementById('totalTimer');
+            const segmentTime = document.getElementById('segmentTime');
+            const segmentControls = document.getElementById('segmentControls');
+
+            if (totalTimer) {
+                if (currentTime < 0) {
+                    totalTimer.textContent = `Total: ${formatTime(totalTime)}`;
+                } else {
+                    totalTimer.textContent = `Total: ${formatTime(currentTime)} / ${formatTime(totalTime)}`;
+                }
+            }
+
+            if (segmentTime && segmentControls) {
+                if (currentTime < 0) {
+                    segmentTime.textContent = `Countdown: ${formatTime(Math.abs(currentTime))}`;
+                    segmentControls.style.display = 'none';
+                } else if (currentIndex >= 0 && currentIndex < script.length) {
+                    const segmentElapsedTime = currentTime - segmentStartTime;
+                    const segmentTotalTime = script[currentIndex].duration;
+                    segmentTime.textContent = `Segment: ${formatTime(segmentElapsedTime)} / ${formatTime(segmentTotalTime)}`;
+                    segmentControls.style.display = 'block';
+                    const segmentDuration = document.getElementById('segmentDuration');
+                    if (segmentDuration) {
+                        segmentDuration.value = segmentTotalTime;
+                    }
+                }
+            }
+
+            // Update teleprompter text and container color
+            const teleprompter = document.getElementById('teleprompter');
+            if (teleprompter) {
+                if (currentTime < 0) {
+                    teleprompter.textContent = `Starting in ${Math.abs(currentTime)} seconds...`;
+                    container.style.borderColor = "#fff";
+                } else if (currentIndex >= 0 && currentIndex < script.length) {
+                    teleprompter.textContent = script[currentIndex].text;
+                    if (isRunning) {
+                        const currentSpeaker = script[currentIndex].speaker;
+                        container.style.borderColor = speakerColors[currentSpeaker] || "#fff";
+                    }
+                }
+            }
+
+            // Update preview
+            updatePreview(currentIndex + 1);
+        }
+
+        function updateSegmentDuration(change) {
+            if (currentIndex >= 0 && currentIndex < script.length) {
+                script[currentIndex].duration = Math.max(1, script[currentIndex].duration + change);
+                segmentDuration.value = script[currentIndex].duration;
+                localStorage.setItem('teleprompterScript', JSON.stringify(script));
+                updateDisplay();
+                updateTotalTime();
+            }
+        }
+
+        function updateTotalTime() {
+            const totalTime = calculateTotalTime();
+            const totalTimeElement = document.getElementById('totalTime');
+            if (totalTimeElement) {
+                totalTimeElement.textContent = `Total: ${formatTime(totalTime)}`;
+            } else {
+                // If the element doesn't exist, update the main timer instead
+                timer.textContent = `Total: ${formatTime(totalTime)}`;
+            }
+        }
+
+        segmentDuration.addEventListener('change', function() {
+            if (currentIndex >= 0 && currentIndex < script.length) {
+                script[currentIndex].duration = Math.max(1, parseInt(this.value));
+                localStorage.setItem('teleprompterScript', JSON.stringify(script));
+                updateDisplay();
+                updateTotalTime();
+            }
+        });
+
+        function updatePreview(nextIndex) {
+            if (nextIndex < script.length) {
+                const nextSpeaker = script[nextIndex].speaker;
+                preview.textContent = script[nextIndex].text;
+                nextSpeakerIndicator.style.backgroundColor = speakerColors[nextSpeaker] || '#fff';
+                nextSpeakerIndicator.title = nextSpeaker;
+            } else {
+                preview.textContent = "End of script";
+                nextSpeakerIndicator.style.backgroundColor = '#fff';
+                nextSpeakerIndicator.title = '';
+            }
+        }
+
+        function toggleTeleprompter() {
+            if (isRunning) {
+                pauseTeleprompter();
+            } else {
+                startTeleprompter();
+            }
+            updateToggleButton();
+        }
+
+        function updateToggleButton() {
+            toggleButton.textContent = isRunning ? 'Pause (Space)' : 'Start (Space)';
+        }
+
+        function resetTeleprompter() {
+            pauseTeleprompter();
+            currentIndex = -1;
+            currentTime = -countdownTime;
+            segmentStartTime = 0;
+
+            const teleprompter = document.getElementById('teleprompter');
+            if (teleprompter) {
+                teleprompter.textContent = "Press Start to begin...";
+            }
+
+            updatePreview(0);
+
+            const container = document.getElementById('container');
+            if (container) {
+                container.style.borderColor = "#fff";
+            }
+
+            updateDisplay();
+
+            const speakerPreview = document.getElementById('speakerPreview');
+            if (speakerPreview) {
+                updateSpeakerPreview();
+                speakerPreview.style.display = 'flex';
+            }
+        }
+
+        function saveSpeakerColors() {
+          localStorage.setItem('speakerColors', JSON.stringify(speakerColors));
+        }
+
+        function getRandomColor() {
+            return '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+        }
+
+        function updateTeleprompter() {
+            currentTime++;
+            if (currentTime === 0) {
+                currentIndex = 0;
+                segmentStartTime = 0;
+            } else if (currentIndex >= 0 && currentIndex < script.length) {
+                const currentSegmentDuration = script[currentIndex].duration;
+                if (currentTime - segmentStartTime >= currentSegmentDuration) {
+                    currentIndex++;
+                    segmentStartTime = currentTime;
+                    if (currentIndex >= script.length) {
+                        pauseTeleprompter();
+                    }
+                }
+            }
+            updateDisplay();
+        }
+
+        function startTeleprompter() {
+            if (!isRunning) {
+                clearInterval(timerInterval);
+                timerInterval = setInterval(updateTeleprompter, 1000);
+                isRunning = true;
+                if (currentTime < 0) {
+                    currentIndex = -1;
+                } else if (currentIndex === -1) {
+                    currentIndex = 0;
+                    segmentStartTime = 0;
+                }
+                updateDisplay();
+                const speakerPreview = document.getElementById('speakerPreview');
+                if (speakerPreview) {
+                    speakerPreview.style.display = 'none';
+                }
+                updateToggleButton();
+            }
+        }
+
+        function pauseTeleprompter() {
+            clearInterval(timerInterval);
+            isRunning = false;
+            container.style.borderColor = "#fff";
+            updateDisplay();
+            updateToggleButton();
+        }
+
+        function resetTeleprompter() {
+            pauseTeleprompter();
+            currentIndex = -1;
+            currentTime = -countdownTime;
+            segmentStartTime = 0;
+
+            const teleprompter = document.getElementById('teleprompter');
+            if (teleprompter) {
+                teleprompter.textContent = "Press Start to begin...";
+            }
+
+            container.style.borderColor = "#fff";
+            updateDisplay();
+            updateToggleButton();
+
+            const speakerPreview = document.getElementById('speakerPreview');
+            if (speakerPreview) {
+                updateSpeakerPreview();
+                speakerPreview.style.display = 'flex';
+            }
+        }
+
+        function navigateScript(direction) {
+            pauseTeleprompter();
+            let newIndex = currentIndex + direction;
+            if (newIndex >= 0 && newIndex < script.length) {
+                currentIndex = newIndex;
+                currentTime = script.slice(0, currentIndex).reduce((total, item) => total + item.duration, 0);
+                segmentStartTime = currentTime;
+                updateDisplay();
+            }
+        }
+
+        function showScriptEditor() {
+            scriptText.value = JSON.stringify(script, null, 2);
+            scriptEditor.style.display = 'block';
+        }
+
+        function hideScriptEditor() {
+            scriptEditor.style.display = 'none';
+        }
+
+        function saveScript() {
+            try {
+                const newScript = JSON.parse(scriptText.value);
+
+                // Check for new speakers and assign random colors
+                newScript.forEach(item => {
+                    if (!speakerColors[item.speaker]) {
+                        speakerColors[item.speaker] = getRandomColor();
+                    }
+                });
+
+                // Remove colors for speakers not in the new script
+                Object.keys(speakerColors).forEach(speaker => {
+                    if (!newScript.some(item => item.speaker === speaker)) {
+                        delete speakerColors[speaker];
+                    }
+                });
+
+                script = newScript;
+                localStorage.setItem('teleprompterScript', JSON.stringify(script));
+                saveSpeakerColors();
+                hideScriptEditor();
+                resetTeleprompter();
+                updateSpeakerPreview();
+                updateTotalTime();
+            } catch (error) {
+                alert('Invalid JSON format. Please check your script.');
+            }
+        }
+
+        function copyToClipboard() {
+            navigator.clipboard.writeText(JSON.stringify(script, null, 2))
+                .then(() => alert('Script copied to clipboard!'))
+                .catch(err => console.error('Error copying to clipboard:', err));
+        }
+
+        function pasteFromClipboard() {
+            navigator.clipboard.readText()
+                .then(text => {
+                    scriptText.value = text;
+                })
+                .catch(err => console.error('Error pasting from clipboard:', err));
+        }
+
+        function showSpeakerManager() {
+            updateSpeakerList();
+            speakerManager.style.display = 'block';
+        }
+
+        function hideSpeakerManager() {
+            speakerManager.style.display = 'none';
+        }
+
+        function updateSpeakerList() {
+            speakerList.innerHTML = '';
+            Object.entries(speakerColors).forEach(([name, color]) => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <span>${name}</span>
+                    <input type="color" value="${color}" data-speaker="${name}">
+                    <button class="deleteSpeaker" data-speaker="${name}">Delete</button>
+                `;
+                speakerList.appendChild(li);
+            });
+            attachSpeakerListeners();
+        }
+
+        function attachSpeakerListeners() {
+            document.querySelectorAll('#speakerList input[type="color"]').forEach(input => {
+                input.addEventListener('change', (e) => {
+                    speakerColors[e.target.dataset.speaker] = e.target.value;
+                });
+            });
+            document.querySelectorAll('.deleteSpeaker').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    delete speakerColors[e.target.dataset.speaker];
+                    updateSpeakerList();
+                });
+            });
+        }
+
+        function addSpeaker() {
+            const name = newSpeakerName.value.trim();
+            const color = newSpeakerColor.value;
+            if (name && !speakerColors[name]) {
+                speakerColors[name] = color;
+                updateSpeakerList();
+                newSpeakerName.value = '';
+            }
+        }
+
+        function saveSpeakers() {
+            localStorage.setItem('speakerColors', JSON.stringify(speakerColors));
+            hideSpeakerManager();
+            updateSpeakerPreview();
+        }
+
+        function updateSpeakerPreview() {
+            speakerPreview.innerHTML = '';
+
+            // Get unique speakers from the script
+            const activeSpeakers = [...new Set(script.map(item => item.speaker))];
+
+            activeSpeakers.forEach(speaker => {
+                if (speakerColors[speaker]) {  // Check if the speaker has a color assigned
+                    const div = document.createElement('div');
+                    div.className = 'speaker-preview';
+                    div.textContent = speaker;
+                    div.style.backgroundColor = speakerColors[speaker];
+                    div.style.color = getContrastColor(speakerColors[speaker]);
+                    speakerPreview.appendChild(div);
+                }
+            });
+        }
+
+        function getContrastColor(hexcolor) {
+            hexcolor = hexcolor.replace("#", "");
+            var r = parseInt(hexcolor.substr(0,2),16);
+            var g = parseInt(hexcolor.substr(2,2),16);
+            var b = parseInt(hexcolor.substr(4,2),16);
+            var yiq = ((r*299)+(g*587)+(b*114))/1000;
+            return (yiq >= 128) ? 'black' : 'white';
+        }
+
+        toggleButton.addEventListener('click', toggleTeleprompter);
+        resetButton.addEventListener('click', resetTeleprompter);
+        backButton.addEventListener('click', () => navigateScript(-1));
+        nextButton.addEventListener('click', () => navigateScript(1));
+        editButton.addEventListener('click', showScriptEditor);
+        decreaseDuration.addEventListener('click', () => updateSegmentDuration(-1));
+        increaseDuration.addEventListener('click', () => updateSegmentDuration(1));
+        manageSpeakersButton.addEventListener('click', showSpeakerManager);
+        saveScriptButton.addEventListener('click', saveScript);
+        cancelEditButton.addEventListener('click', hideScriptEditor);
+        copyToClipboardButton.addEventListener('click', copyToClipboard);
+        pasteFromClipboardButton.addEventListener('click', pasteFromClipboard);
+        addSpeakerButton.addEventListener('click', addSpeaker);
+        saveSpeakersButton.addEventListener('click', saveSpeakers);
+        cancelSpeakersButton.addEventListener('click', hideSpeakerManager);
+
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault(); // Prevent scrolling when pressing space
+                toggleTeleprompter();
+            }
+            if (e.key === 'r' || e.key === 'R') resetTeleprompter();
+            if (e.key === 'ArrowLeft') navigateScript(-1);
+            if (e.key === 'ArrowRight') navigateScript(1);
+            if (e.key === 'e' || e.key === 'E') showScriptEditor();
+            if (e.key === 'm' || e.key === 'M') showSpeakerManager();
+        });
+
+        // Initial setup
+        updateSpeakerPreview();
+        resetTeleprompter();
+    </script>
+</body>
+</html>
