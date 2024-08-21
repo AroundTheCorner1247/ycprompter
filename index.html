@@ -59,6 +59,8 @@
             height: 20px;
             border-radius: 50%;
             margin-right: 10px;
+            flex-shrink: 0;
+            flex-grow: 0;
         }
         button {
             padding: 10px 20px;
@@ -266,6 +268,9 @@
             const totalTimer = document.getElementById('totalTimer');
             const segmentTime = document.getElementById('segmentTime');
             const segmentControls = document.getElementById('segmentControls');
+            const teleprompter = document.getElementById('teleprompter');
+            const preview = document.getElementById('preview');
+            const nextSpeakerIndicator = document.getElementById('nextSpeakerIndicator');
 
             if (totalTimer) {
                 if (currentTime < 0) {
@@ -291,7 +296,6 @@
                 }
             }
 
-            const teleprompter = document.getElementById('teleprompter');
             if (teleprompter) {
                 if (currentTime < 0) {
                     teleprompter.textContent = `Start in ${Math.abs(currentTime)} seconds...`;
@@ -305,8 +309,9 @@
                 }
             }
 
-            // Update preview
-            updatePreview(currentIndex + 1);
+            if (preview && nextSpeakerIndicator) {
+                updatePreview(currentIndex + 1);
+            }
         }
 
         function updateSegmentDuration(change) {
@@ -322,11 +327,14 @@
         function updateTotalTime() {
             const totalTime = calculateTotalTime();
             const totalTimeElement = document.getElementById('totalTime');
+            const timerElement = document.getElementById('timer');
+
             if (totalTimeElement) {
                 totalTimeElement.textContent = `Total: ${formatTime(totalTime)}`;
+            } else if (timerElement) {
+                timerElement.textContent = `Total: ${formatTime(totalTime)}`;
             } else {
-                // If the element doesn't exist, update the main timer instead
-                timer.textContent = `Total: ${formatTime(totalTime)}`;
+                console.error('Error: Unable to update total time, element not found.');
             }
         }
 
@@ -484,11 +492,19 @@
         }
 
         function showScriptEditor() {
-            scriptText.value = JSON.stringify(script, null, 2);
+            const scriptEditor = document.getElementById('scriptEditor');
+            const scriptText = document.getElementById('scriptText');
+
+            // Load the current script into the textarea
+            scriptText.value = JSON.stringify(script, null, 2); // Pretty print the JSON
+
+            // Display the modal
             scriptEditor.style.display = 'block';
         }
 
+
         function hideScriptEditor() {
+            const scriptEditor = document.getElementById('scriptEditor');
             scriptEditor.style.display = 'none';
         }
 
@@ -518,6 +534,7 @@
                 updateSpeakerPreview();
                 updateTotalTime();
             } catch (error) {
+                console.log(error);
                 alert('Invalid JSON format. Please check your script.');
             }
         }
@@ -633,6 +650,15 @@
         cancelSpeakersButton.addEventListener('click', hideSpeakerManager);
 
         document.addEventListener('keydown', (e) => {
+            const scriptEditor = document.getElementById('scriptEditor');
+
+            // Check if the script editor modal is visible
+            if (scriptEditor && scriptEditor.style.display === 'block') {
+                // Prevent any other key actions when the modal is open
+                return;
+            }
+
+            // The modal is not open, so allow other key actions
             if (e.code === 'Space') {
                 e.preventDefault(); // Prevent scrolling when pressing space
                 toggleTeleprompter();
