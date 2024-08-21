@@ -60,10 +60,6 @@
             border-radius: 50%;
             margin-right: 10px;
         }
-        #preview {
-            font-size: 1.5em;
-            color: #aaa;
-        }
         button {
             padding: 10px 20px;
             font-size: 1em;
@@ -144,6 +140,15 @@
             border-radius: 5px;
             font-weight: bold;
         }
+        footer {
+            margin-top: 20px;
+            font-size: .75em;
+            color: #aaa;
+        }
+        footer a {
+            color: #aaa;
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -173,6 +178,10 @@
             <button id="editButton">Edit Script (E)</button>
             <button id="manageSpeakersButton">Manage Speakers (M)</button>
         </div>
+         <footer id="footer">
+            <p>Check out the project on <a href="https://github.com/AroundTheCorner1247/ycprompter" target="_blank">GitHub</a>.</p>
+            <p>Developed by Nicholas - CoFounder of (<a target="_blank" href="https://www.aroundthecorner.today">www.aroundthecorner.today</a>).</p>
+        </footer>
     </div>
     <div id="scriptEditor" class="modal">
         <h2>Edit Script</h2>
@@ -282,11 +291,10 @@
                 }
             }
 
-            // Update teleprompter text and container color
             const teleprompter = document.getElementById('teleprompter');
             if (teleprompter) {
                 if (currentTime < 0) {
-                    teleprompter.textContent = `Starting in ${Math.abs(currentTime)} seconds...`;
+                    teleprompter.textContent = `Start in ${Math.abs(currentTime)} seconds...`;
                     container.style.borderColor = "#fff";
                 } else if (currentIndex >= 0 && currentIndex < script.length) {
                     teleprompter.textContent = script[currentIndex].text;
@@ -345,6 +353,8 @@
         }
 
         function toggleTeleprompter() {
+            document.getElementById('footer').style.display = 'none';
+
             if (isRunning) {
                 pauseTeleprompter();
             } else {
@@ -412,6 +422,7 @@
 
         function startTeleprompter() {
             if (!isRunning) {
+                document.getElementById('footer').style.display = 'none';
                 clearInterval(timerInterval);
                 timerInterval = setInterval(updateTeleprompter, 1000);
                 isRunning = true;
@@ -431,6 +442,7 @@
         }
 
         function pauseTeleprompter() {
+            document.getElementById('footer').style.display = 'block';
             clearInterval(timerInterval);
             isRunning = false;
             container.style.borderColor = "#fff";
