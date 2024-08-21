@@ -2,6 +2,8 @@
 
 YC Prompter is an open-source web-based teleprompter application designed to help founders create their Y Combinator (YC) application videos. This tool provides a user-friendly interface for scripting, timing, and presenting your pitch with ease, all within your web browser.
 
+![YC Prompter Demo](./ycprompter.gif)
+
 ## Features
 
 - Browser-based teleprompter accessible at ycprompter.com
